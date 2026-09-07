@@ -1,0 +1,83 @@
+# Object-removal LoRA on FLUX.2-klein-base-9B (stripe mask conditioning)
+
+pretrained_model_name_or_path: "black-forest-labs/FLUX.2-klein-base-9B"
+cache_dir: "./cache_huggingface"
+tracker_project_name: "flux2-klein-9b_lora_object-effect-removal"
+report_to: "wandb"
+
+seed: 2026
+mixed_precision: bf16
+
+# lora config (9B has 24 single transformer blocks; targets auto-detected in train_lora_base.py)
+rank: 64
+lora_dropout: 0.0
+
+# model prompt
+model_prompt: "Remove the objects in the transparent black-and-white striped patterns (with red boundary) from the image. Also remove their traces on the scene (e.g. shadows, reflections, lighting, etc.). Output Requirements: - Indicated objects and their traces must be removed, leaving natural-looking **EMPTY** areas. - All other objects in the image must be preserved."
+
+# training hyper-parameters
+learning_rate: 8e-5
+lr_scheduler: "constant"
+max_train_steps: 3000
+checkpointing_steps: 500
+checkpoints_total_limit: 10
+gradient_checkpointing: true
+resume_from_checkpoint: "latest"
+offload: false
+
+# dataset setting — batch 1 for 9B VRAM (raise if you have headroom / multi-GPU)
+resolution: 1024
+train_batch_size: 1
+gradient_accumulation_steps: 8
+dataloader_num_workers: 8
+
+train_datasets:
+  # RORD: single object data
+  - type: ObjectEffectStripeDataset
+    sample_prob: 0.15
+    kwargs:
+      data_root: "data/RORD_subset10k"
+      json_file_path: "data/RORD_subset10k/train.json"
+      out_size: 1024
+      mask_dilate_kernel: [7, 20]
+      mask_overlay_opacity: 0.5
+      stripe_width: 12
+  # newset: focus on multi-object data
+  - type: ObjectEffectStripeDataset
+    sample_prob: 0.55
+    kwargs:
+      data_root: "data/data_good_qwen-251210/"
+      json_file_path: "data/data_good_qwen-251210/train.json"
+      out_size: 1024
+      mask_dilate_kernel: null
+      mask_overlay_opacity: 0.5
+      stripe_width: 12
+  # objectclear: has both single- and multi-object data
+  - type: ObjectEffectStripeDataset
+    sample_prob: 0.2
+    kwargs:
+      data_root: "data/ObjectClear/"
+      json_file_path: "data/ObjectClear/train.json"
+      out_size: 1024
+      mask_dilate_kernel: [7, 20]
+      mask_overlay_opacity: 0.5
+      stripe_width: 12
+  # CausRem: mainly single object data
+  - type: ObjectEffectStripeDataset
+    sample_prob: 0.1
+    kwargs:
+      data_root: "data/CausRem_extract"
+      json_file_path: "data/CausRem_extract/train.json"
+      out_size: 1024
+      mask_dilate_kernel: [7, 20]
+      mask_overlay_opacity: 0.5
+      stripe_width: 12
+
+# validation data
+validation_steps: 500
+validation_data:
+  cases:
+    - image_root: 'validation_data/test_imgs'
+      mask_root: 'validation_data/test_mask'
+      num_samples: 2
+

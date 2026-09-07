@@ -1,0 +1,49 @@
+# Style transfer LoRA on FLUX.2-klein-base-9B
+# content (images) + style (style_refs) → edited_images
+
+pretrained_model_name_or_path: "black-forest-labs/FLUX.2-klein-base-9B"
+cache_dir: "./cache_huggingface"
+tracker_project_name: "flux2-klein-9b_lora_style-transfer"
+report_to: "wandb"
+
+seed: 2026
+mixed_precision: bf16
+
+# lora config (9B single-block targets auto-detected)
+rank: 64
+lora_dropout: 0.0
+
+model_prompt: "apply the artistic style of the second image to the first image, keep the subject and composition of the first image"
+
+# training hyper-parameters
+learning_rate: 8e-5
+lr_scheduler: "constant"
+max_train_steps: 5000
+checkpointing_steps: 500
+checkpoints_total_limit: 10
+gradient_checkpointing: true
+resume_from_checkpoint: "latest"
+offload: true
+
+# dataset setting — batch 1 for 9B + 2 controls; VAE/TE offloaded to fit 64GB
+resolution: 1024
+train_batch_size: 1
+gradient_accumulation_steps: 8
+dataloader_num_workers: 4
+
+train_datasets:
+  - type: StyleTransferDataset
+    sample_prob: 1.0
+    kwargs:
+      data_root: "/vast/users/zhenyu.xie/tungdt/code/klein/data/unified_style_data"
+      pairs_jsonl: "pairs.jsonl"
+      out_size: 1024
+
+# validation: content | style | output grids logged to wandb
+# first val at step 500 (not step 1) to avoid DDP desync / long NCCL waits early
+validation_steps: 500
+validation_data:
+  cases:
+    - content_root: "/vast/users/zhenyu.xie/tungdt/code/klein/data/unified_style_data/images"
+      style_root: "/vast/users/zhenyu.xie/tungdt/code/klein/data/unified_style_data/style_refs"
+      num_samples: 1

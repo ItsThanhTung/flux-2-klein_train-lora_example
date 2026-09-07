@@ -1,0 +1,116 @@
+teacher_model: "black-forest-labs/FLUX.2-klein-base-9B"
+student_model: "black-forest-labs/FLUX.2-klein-9B"
+cache_dir: "cache_huggingface"
+
+# Final 50-step LoRA produced by scripts/train_lora.sh. A checkpoint directory
+# or a direct pytorch_lora_weights.safetensors path can also be supplied.
+teacher_lora_path: "exps/train_lora_removal_stripe_multi-data_9b_r64"
+
+# Blank means: initialize the student and fake-score adapters from teacher_lora_path.
+student_lora_init_path:
+output_dir: "exps/distill_dmd2_lora_removal_stripe_4step"
+
+seed: 2026
+mixed_precision: bf16
+allow_tf32: true
+gradient_checkpointing: true
+report_to: "wandb"
+tracker_project_name: "flux2_klein_dmd2_lora_object_removal"
+
+# Match the teacher LoRA architecture (9B: 24 single blocks).
+rank: 64
+lora_alpha: 64
+lora_dropout: 0.0
+lora_layers: "to_q,to_k,to_v,to_out.0,add_q_proj,add_k_proj,add_v_proj,to_add_out,linear_in,linear_out,to_qkv_mlp_proj,single_transformer_blocks.0.attn.to_out,single_transformer_blocks.1.attn.to_out,single_transformer_blocks.2.attn.to_out,single_transformer_blocks.3.attn.to_out,single_transformer_blocks.4.attn.to_out,single_transformer_blocks.5.attn.to_out,single_transformer_blocks.6.attn.to_out,single_transformer_blocks.7.attn.to_out,single_transformer_blocks.8.attn.to_out,single_transformer_blocks.9.attn.to_out,single_transformer_blocks.10.attn.to_out,single_transformer_blocks.11.attn.to_out,single_transformer_blocks.12.attn.to_out,single_transformer_blocks.13.attn.to_out,single_transformer_blocks.14.attn.to_out,single_transformer_blocks.15.attn.to_out,single_transformer_blocks.16.attn.to_out,single_transformer_blocks.17.attn.to_out,single_transformer_blocks.18.attn.to_out,single_transformer_blocks.19.attn.to_out,single_transformer_blocks.20.attn.to_out,single_transformer_blocks.21.attn.to_out,single_transformer_blocks.22.attn.to_out,single_transformer_blocks.23.attn.to_out"
+model_prompt: "Remove the objects in the transparent black-and-white striped patterns (with red boundary) from the image. Also remove their traces on the scene (e.g. shadows, reflections, lighting, etc.). Output Requirements: - Indicated objects and their traces must be removed, leaving natural-looking **EMPTY** areas. - All other objects in the image must be preserved."
+
+# Conservative single-GPU defaults for an 80 GB accelerator.
+resolution: 1024
+train_batch_size: 1
+gradient_accumulation_steps: 8
+dataloader_num_workers: 8
+max_train_steps: 400
+checkpointing_steps: 50
+checkpointing_steps_after_fake_critic_pretrain: 25
+learning_rate: 5e-5
+fake_learning_rate: 5e-5
+lr_scheduler: "constant_with_warmup"
+lr_warmup_steps: 50
+max_grad_norm: 1.0
+
+# DMD2 student and fake-score critic.
+student_num_inference_steps: 4
+teacher_guidance_scale: 5.0
+dmd2_weight: 1.0
+fake_score_weight: 1.0
+fake_initialize: "student"
+fake_num_updates: 3
+fake_critic_pretrain_steps: 200
+fake_time_sampler: "uniform_high"
+fake_time_min: 600
+fake_time_max: 1000
+ida_lambda: 0.97
+weighting_scheme: "none"
+logit_mean: 0.0
+logit_std: 1.0
+mode_scale: 1.29
+
+# Optional teacher trajectory matching. Both controls are deliberately exposed
+# but disabled for the initial pure-DMD2 run.
+teacher_latent_l1_weight: 0.0
+teacher_latent_l2_weight: 0.0
+teacher_latent_sample_steps: 30
+
+# Optional image-space losses. SenseFlow GAN and LPIPS dependencies are loaded
+# only when the corresponding weight is positive.
+lpips_weight: 0.0
+gan_weight: 0.0
+discriminator_learning_rate: 5e-5
+no_gan_disc_pretrain: true
+
+validation_steps: 50
+validation_num_inference_steps: 4
+validation_guidance_scale: 1.0
+validation_data:
+  cases:
+    - image_root: "validation_data/test_imgs"
+      mask_root: "validation_data/test_mask"
+      num_samples: 2
+
+train_datasets:
+  - type: ObjectEffectStripeDataset
+    sample_prob: 0.15
+    kwargs:
+      data_root: "data/RORD_subset10k"
+      json_file_path: "data/RORD_subset10k/train.json"
+      out_size: 1024
+      mask_dilate_kernel: [7, 20]
+      mask_overlay_opacity: 0.5
+      stripe_width: 12
+  - type: ObjectEffectStripeDataset
+    sample_prob: 0.55
+    kwargs:
+      data_root: "data/data_good_qwen-251210"
+      json_file_path: "data/data_good_qwen-251210/train.json"
+      out_size: 1024
+      mask_dilate_kernel:
+      mask_overlay_opacity: 0.5
+      stripe_width: 12
+  - type: ObjectEffectStripeDataset
+    sample_prob: 0.20
+    kwargs:
+      data_root: "data/ObjectClear"
+      json_file_path: "data/ObjectClear/train.json"
+      out_size: 1024
+      mask_dilate_kernel: [7, 20]
+      mask_overlay_opacity: 0.5
+      stripe_width: 12
+  - type: ObjectEffectStripeDataset
+    sample_prob: 0.10
+    kwargs:
+      data_root: "data/CausRem_extract"
+      json_file_path: "data/CausRem_extract/train.json"
+      out_size: 1024
+      mask_dilate_kernel: [7, 20]
+      mask_overlay_opacity: 0.5
+      stripe_width: 12

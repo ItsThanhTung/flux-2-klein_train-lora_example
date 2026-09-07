@@ -1,0 +1,6 @@
+# Optional image-space losses for distill_dmd2_lora_removal.py.
+# Install the repository's root requirements first. Core DMD2 and latent L1/L2
+# do not require these packages.
+lpips
+open_clip_torch
+git+https://github.com/XingtongGe/SenseFlow.git

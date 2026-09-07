@@ -1,0 +1,45 @@
+# Style transfer LoRA on FLUX.2-klein-base-9B
+# Dataset: ominidataset (OmniConsistency) via pairs.json
+# content (src) + style ref (other tar in same style) → stylized (tar)
+
+pretrained_model_name_or_path: "black-forest-labs/FLUX.2-klein-base-9B"
+cache_dir: "./cache_huggingface"
+tracker_project_name: "flux2-klein-9b_lora_style-transfer-ominidataset"
+report_to: "wandb"
+
+seed: 2026
+mixed_precision: bf16
+
+rank: 64
+lora_dropout: 0.0
+
+model_prompt: "apply the artistic style of the second image to the first image, keep the subject and composition of the first image"
+
+learning_rate: 8e-5
+lr_scheduler: "constant"
+max_train_steps: 3000
+checkpointing_steps: 500
+checkpoints_total_limit: 10
+gradient_checkpointing: true
+resume_from_checkpoint: "latest"
+offload: true
+
+resolution: 1024
+train_batch_size: 2
+gradient_accumulation_steps: 4
+dataloader_num_workers: 4
+
+train_datasets:
+  - type: StyleTransferDataset
+    sample_prob: 1.0
+    kwargs:
+      data_root: "/vast/users/zhenyu.xie/tungdt/code/klein/data/ominidataset"
+      pairs_json: "pairs.json"
+      out_size: 1024
+
+validation_steps: 500
+validation_data:
+  cases:
+    - content_root: "/vast/users/zhenyu.xie/tungdt/code/klein/data/ominidataset/sample_refs/content"
+      style_root: "/vast/users/zhenyu.xie/tungdt/code/klein/data/ominidataset/sample_refs/style"
+      num_samples: 2

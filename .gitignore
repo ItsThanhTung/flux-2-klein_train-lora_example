@@ -1,0 +1,10 @@
+**.pyc
+cache_huggingface
+exps/
+exps_outputs/
+train_logs/
+validation_data/test_imgs
+validation_data/test_mask
+exps_*
+wandb
+data/
